@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bouncing Ball Game - Final Rescue</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea, #764ba2, #ff758c);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .scorecard {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 18px 35px;
+      margin-bottom: 25px;
+      display: flex;
+      gap: 40px;
+      font-size: 18px;
+      color: #fff;
+      font-weight: bold;
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    }
+    .outer-box {
+      width: 920px;
+      height: 620px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 22px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(15px);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      position: relative;
+    }
+    .inner-box {
+      width: 860px;
+      height: 560px;
+      background: linear-gradient(135deg, #d4fc79, #96e6a1);
+      border: 2px solid #5b6fff;
+      border-radius: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .ball {
+      width: 50px;
+      height: 50px;
+      background: radial-gradient(circle at 30% 30%, #ff3e55, #b50031);
+      border: 4px solid #fff;
+      border-radius: 50%;
+      position: absolute;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    }
+    .plate {
+      width: 160px;
+      height: 26px;
+      background: linear-gradient(135deg, #00c6ff, #0072ff, #9d50bb);
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      border-radius: 14px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+      transition: left 0.05s ease-in-out;
+    }
+    .game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 40px 50px;
+      border-radius: 14px;
+      text-align: center;
+      display: none;
+      animation: fadeIn 0.3s ease-in-out;
+      box-shadow: 0 0 20px rgba(255, 0, 100, 0.5);
+    }
+    .game-over h1 { margin-bottom: 20px; font-size: 38px; }
+    .game-over p { margin-bottom: 20px; font-size: 20px; }
+    .game-over button {
+      padding: 14px 30px;
+      border: none;
+      border-radius: 30px;
+      background: linear-gradient(to right, #ff6a00, #ee0979);
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .game-over button:hover { transform: scale(1.08); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translate(-50%, -60%); }
+      to { opacity: 1; transform: translate(-50%, -50%); }
+    }
+  </style>
+</head>
+<body>
+  <div class="scorecard">
+    <div>⭐ Level: <span id="level">1</span></div>
+    <div>🎯 Score: <span id="score">0</span></div>
+    <div>📈 High: <span id="highscore">0</span></div>
+    <div>⏱️ Time: <span id="time">0</span>s</div>
+  </div>
+
+  <div class="outer-box">
+    <div class="inner-box">
+      <div class="ball" id="ball"></div>
+      <div class="plate" id="plate"></div>
+      <div class="game-over" id="gameOver">
+        <h1>Game Over</h1>
+        <p>🏆 High Score: <span id="finalHighscore">0</span></p>
+        <button onclick="restartGame()">Replay</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ball = document.getElementById("ball");
+    const box = document.querySelector(".inner-box");
+    const plate = document.getElementById("plate");
+    const scoreText = document.getElementById("score");
+    const timeText = document.getElementById("time");
+    const levelText = document.getElementById("level");
+    const highscoreText = document.getElementById("highscore");
+    const finalHighscore = document.getElementById("finalHighscore");
+    const gameOver = document.getElementById("gameOver");
+
+    let posX = 120, posY = 100;
+    let velocityX = 4, velocityY = 5;
+    let score = 0, level = 1, time = 0;
+    const ballSize = 50;
+    let plateX = (box.clientWidth - plate.offsetWidth) / 2;
+    let moveLeft = false, moveRight = false;
+    const plateSpeed = 8;
+    let intervalId;
+    let isGameOver = false;
+    let highscore = localStorage.getItem("highscore") || 0;
+    highscoreText.textContent = highscore;
+
+    document.addEventListener("keydown", (e) => {
+      if (isGameOver) return;
+      if (e.key === "ArrowLeft") moveLeft = true;
+      if (e.key === "ArrowRight") moveRight = true;
+    });
+
+    document.addEventListener("keyup", (e) => {
+      if (isGameOver) return;
+      if (e.key === "ArrowLeft") moveLeft = false;
+      if (e.key === "ArrowRight") moveRight = false;
+    });
+
+    function movePlate() {
+      if (isGameOver) return;
+      if (moveLeft) plateX -= plateSpeed;
+      if (moveRight) plateX += plateSpeed;
+      const maxPlateX = box.clientWidth - plate.offsetWidth;
+      plateX = Math.max(0, Math.min(plateX, maxPlateX));
+      plate.style.left = plateX + "px";
+    }
+
+    function animateGame() {
+      if (isGameOver) return;
+
+      const boxWidth = box.clientWidth;
+      const boxHeight = box.clientHeight;
+
+      posX += velocityX;
+      posY += velocityY;
+
+      if (posX <= 0 || posX >= boxWidth - ballSize) velocityX = -velocityX;
+      if (posY <= 0) velocityY = -velocityY;
+
+      const plateTop = plate.offsetTop;
+      const plateLeft = plate.offsetLeft;
+      const plateRight = plateLeft + plate.offsetWidth;
+      const ballBottom = posY + ballSize;
+      const ballCenterX = posX + ballSize / 2;
+      const nextBottom = posY + ballSize + velocityY;
+
+      if (
+        nextBottom >= plateTop &&
+        ballBottom <= plateTop + 30 &&
+        ballCenterX >= plateLeft &&
+        ballCenterX <= plateRight &&
+        velocityY > 0
+      ) {
+        velocityY = -velocityY;
+        posY = plateTop - ballSize;
+        score++;
+        scoreText.textContent = score;
+
+        if (score > highscore) {
+          highscore = score;
+          localStorage.setItem("highscore", highscore);
+          highscoreText.textContent = highscore;
+        }
+
+        if (score % 10 === 0) {
+          level++;
+          levelText.textContent = level;
+          velocityY += 0.5;
+        }
+      }
+
+      if (
+        posY > boxHeight - ballSize &&
+        !(
+          nextBottom >= plateTop &&
+          ballBottom <= plateTop + 30 &&
+          ballCenterX >= plateLeft &&
+          ballCenterX <= plateRight &&
+          velocityY > 0
+        )
+      ) {
+        rescuePlateCatch();
+        return;
+      }
+
+      ball.style.left = posX + "px";
+      ball.style.top = posY + "px";
+
+      movePlate();
+      requestAnimationFrame(animateGame);
+    }
+
+    function rescuePlateCatch() {
+      isGameOver = true;
+      clearInterval(intervalId);
+
+      const ballCenterX = posX + ballSize / 2;
+      const targetX = ballCenterX - plate.offsetWidth / 2;
+      const maxPlateX = box.clientWidth - plate.offsetWidth;
+
+      let plateMove = setInterval(() => {
+        if (Math.abs(plateX - targetX) < 2) {
+          plateX = Math.max(0, Math.min(targetX, maxPlateX));
+          plate.style.left = plateX + "px";
+          clearInterval(plateMove);
+          dropBallOnPlate();
+        } else {
+          plateX += (targetX - plateX) * 0.2;
+          plate.style.left = plateX + "px";
+        }
+      }, 16);
+    }
+
+    function dropBallOnPlate() {
+      const targetY = plate.offsetTop - ballSize;
+      let dropSpeed = 0;
+      let drop = setInterval(() => {
+        dropSpeed += 0.3;
+        posY += dropSpeed;
+
+        if (posY >= targetY) {
+          posY = targetY;
+          ball.style.top = posY + "px";
+          clearInterval(drop);
+          finalHighscore.textContent = highscore;
+          gameOver.style.display = "block";
+        } else {
+          ball.style.top = posY + "px";
+        }
+      }, 16);
+    }
+
+    function restartGame() {
+      posX = 120;
+      posY = 100;
+      velocityX = 3;
+      velocityY = 4 ;
+      score = 0;
+      level = 1;
+      time = 0;
+      isGameOver = false;
+      moveLeft = false;
+      moveRight = false;
+      plateX = (box.clientWidth - plate.offsetWidth) / 2;
+      plate.style.left = plateX + "px";
+      scoreText.textContent = "0";
+      levelText.textContent = "1";
+      timeText.textContent = "0";
+      gameOver.style.display = "none";
+      intervalId = setInterval(() => {
+        time++;
+        timeText.textContent = time;
+      }, 1000);
+      requestAnimationFrame(animateGame);
+    }
+
+    intervalId = setInterval(() => {
+      time++;
+      timeText.textContent = time;
+    }, 1000);
+    requestAnimationFrame(animateGame);
+  </script>
+</body>
+</html>
