@@ -70,7 +70,34 @@
       left: 0;
       border-radius: 14px;
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
-      transition: left 0.05s ease-in-out;
+      transition: left 0.05s ease-in-out, box-shadow 0.3s;
+    }
+    .progress {
+      position: absolute;
+      top: 10px; left: 10px; right: 10px;
+      height: 10px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 8px;
+    }
+    #progressFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg,#00f260,#0575e6);
+      border-radius: 8px;
+      transition: width 0.3s ease;
+    }
+    .particle {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: yellow;
+      opacity: 0.8;
+      pointer-events: none;
+      animation: spark 0.5s forwards;
+    }
+    @keyframes spark {
+      to { transform: translateY(-20px) scale(0); opacity: 0; }
     }
     .game-over {
       position: absolute;
@@ -104,6 +131,21 @@
       from { opacity: 0; transform: translate(-50%, -60%); }
       to { opacity: 1; transform: translate(-50%, -50%); }
     }
+    .menu {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      background: rgba(0,0,0,0.8);
+      padding: 40px; border-radius: 16px;
+      color: white; text-align: center;
+      z-index: 10;
+    }
+    .menu button {
+      margin: 10px; padding: 14px 28px;
+      background: #0072ff; color: #fff;
+      border-radius: 12px; border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
@@ -116,12 +158,19 @@
 
   <div class="outer-box">
     <div class="inner-box">
+      <div class="progress"><div id="progressFill"></div></div>
       <div class="ball" id="ball"></div>
       <div class="plate" id="plate"></div>
       <div class="game-over" id="gameOver">
         <h1>Game Over</h1>
         <p>🏆 High Score: <span id="finalHighscore">0</span></p>
         <button onclick="restartGame()">Replay</button>
+      </div>
+      <div id="menu" class="menu">
+        <h1>Choose Difficulty</h1>
+        <button onclick="startGame('easy')">Easy</button>
+        <button onclick="startGame('normal')">Normal</button>
+        <button onclick="startGame('hard')">Hard</button>
       </div>
     </div>
   </div>
@@ -136,18 +185,39 @@
     const highscoreText = document.getElementById("highscore");
     const finalHighscore = document.getElementById("finalHighscore");
     const gameOver = document.getElementById("gameOver");
+    const progressFill = document.getElementById("progressFill");
+    const menu = document.getElementById("menu");
 
     let posX = 120, posY = 100;
     let velocityX = 4, velocityY = 5;
     let score = 0, level = 1, time = 0;
+    let lives = 3;
     const ballSize = 50;
-    let plateX = (box.clientWidth - plate.offsetWidth) / 2;
+    let plateX;
     let moveLeft = false, moveRight = false;
-    const plateSpeed = 8;
+    let plateSpeed = 8;
     let intervalId;
     let isGameOver = false;
     let highscore = localStorage.getItem("highscore") || 0;
     highscoreText.textContent = highscore;
+
+    const backgrounds = [
+      "linear-gradient(135deg, #667eea, #764ba2, #ff758c)",
+      "linear-gradient(135deg, #43cea2, #185a9d)",
+      "linear-gradient(135deg, #ff512f, #dd2476)",
+      "linear-gradient(135deg, #00c9ff, #92fe9d)",
+    ];
+
+    function createParticle(x, y) {
+      for (let i = 0; i < 6; i++) {
+        const p = document.createElement("div");
+        p.className = "particle";
+        p.style.left = x + "px";
+        p.style.top = y + "px";
+        box.appendChild(p);
+        setTimeout(() => p.remove(), 500);
+      }
+    }
 
     document.addEventListener("keydown", (e) => {
       if (isGameOver) return;
@@ -159,6 +229,13 @@
       if (isGameOver) return;
       if (e.key === "ArrowLeft") moveLeft = false;
       if (e.key === "ArrowRight") moveRight = false;
+    });
+
+    box.addEventListener("touchmove", (e) => {
+      const rect = box.getBoundingClientRect();
+      const touchX = e.touches[0].clientX - rect.left;
+      plateX = Math.max(0, Math.min(touchX - plate.offsetWidth/2, box.clientWidth - plate.offsetWidth));
+      plate.style.left = plateX + "px";
     });
 
     function movePlate() {
@@ -179,8 +256,8 @@
       posX += velocityX;
       posY += velocityY;
 
-      if (posX <= 0 || posX >= boxWidth - ballSize) velocityX = -velocityX;
-      if (posY <= 0) velocityY = -velocityY;
+      if (posX <= 0 || posX >= boxWidth - ballSize) { velocityX = -velocityX; createParticle(posX, posY); }
+      if (posY <= 0) { velocityY = -velocityY; createParticle(posX, posY); }
 
       const plateTop = plate.offsetTop;
       const plateLeft = plate.offsetLeft;
@@ -200,6 +277,7 @@
         posY = plateTop - ballSize;
         score++;
         scoreText.textContent = score;
+        createParticle(posX, posY);
 
         if (score > highscore) {
           highscore = score;
@@ -207,23 +285,18 @@
           highscoreText.textContent = highscore;
         }
 
+        progressFill.style.width = (score % 10) * 10 + "%";
+
         if (score % 10 === 0) {
           level++;
           levelText.textContent = level;
           velocityY += 0.5;
+          plate.style.boxShadow = `0 0 20px 5px rgba(0,200,255,${0.5 + level*0.1})`;
+          box.style.background = backgrounds[(Math.floor(level/5)) % backgrounds.length];
         }
       }
 
-      if (
-        posY > boxHeight - ballSize &&
-        !(
-          nextBottom >= plateTop &&
-          ballBottom <= plateTop + 30 &&
-          ballCenterX >= plateLeft &&
-          ballCenterX <= plateRight &&
-          velocityY > 0
-        )
-      ) {
+      if (posY > boxHeight - ballSize) {
         rescuePlateCatch();
         return;
       }
@@ -238,48 +311,13 @@
     function rescuePlateCatch() {
       isGameOver = true;
       clearInterval(intervalId);
-
-      const ballCenterX = posX + ballSize / 2;
-      const targetX = ballCenterX - plate.offsetWidth / 2;
-      const maxPlateX = box.clientWidth - plate.offsetWidth;
-
-      let plateMove = setInterval(() => {
-        if (Math.abs(plateX - targetX) < 2) {
-          plateX = Math.max(0, Math.min(targetX, maxPlateX));
-          plate.style.left = plateX + "px";
-          clearInterval(plateMove);
-          dropBallOnPlate();
-        } else {
-          plateX += (targetX - plateX) * 0.2;
-          plate.style.left = plateX + "px";
-        }
-      }, 16);
-    }
-
-    function dropBallOnPlate() {
-      const targetY = plate.offsetTop - ballSize;
-      let dropSpeed = 0;
-      let drop = setInterval(() => {
-        dropSpeed += 0.3;
-        posY += dropSpeed;
-
-        if (posY >= targetY) {
-          posY = targetY;
-          ball.style.top = posY + "px";
-          clearInterval(drop);
-          finalHighscore.textContent = highscore;
-          gameOver.style.display = "block";
-        } else {
-          ball.style.top = posY + "px";
-        }
-      }, 16);
+      finalHighscore.textContent = highscore;
+      gameOver.style.display = "block";
     }
 
     function restartGame() {
       posX = 120;
       posY = 100;
-      velocityX = 3;
-      velocityY = 4 ;
       score = 0;
       level = 1;
       time = 0;
@@ -291,6 +329,7 @@
       scoreText.textContent = "0";
       levelText.textContent = "1";
       timeText.textContent = "0";
+      progressFill.style.width = "0%";
       gameOver.style.display = "none";
       intervalId = setInterval(() => {
         time++;
@@ -299,11 +338,13 @@
       requestAnimationFrame(animateGame);
     }
 
-    intervalId = setInterval(() => {
-      time++;
-      timeText.textContent = time;
-    }, 1000);
-    requestAnimationFrame(animateGame);
+    function startGame(difficulty) {
+      menu.style.display = "none";
+      if (difficulty === "easy") { velocityX = 3; velocityY = 3; lives = 5; }
+      if (difficulty === "normal") { velocityX = 4; velocityY = 5; lives = 3; }
+      if (difficulty === "hard") { velocityX = 6; velocityY = 7; lives = 3; plate.style.width = "100px"; }
+      restartGame();
+    }
   </script>
 </body>
 </html>
